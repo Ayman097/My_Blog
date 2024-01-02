@@ -3,6 +3,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.mail import send_mail
 from django.views.generic import ListView
 from django.views.decorators.http import require_POST
+from django.db.models import Count
 from .models import Post, Comment
 from .forms import EmailPostForm, CommentForm
 from taggit.models import Tag
@@ -60,9 +61,24 @@ def post_detail(request, year, month, day, post):
     # Form for users to comment
     form = CommentForm()
 
+    # List of similar posts
+    '''
+     retrieving list of IDs for the tags of the current post.
+     The "values_list()" QuerySet returns tuples with the values for the given fields.
+     flat=True ==> to get single values such as [1, 2, 3, ...] instead of one-tuples such as [(1,), (2,), (3,) ...]
+    '''
+    post_tags_ids = post.tags.values_list('id', flat=True)
+    # get all posts that contain any of these tags, excluding the current post itself.
+    similar_posts = Post.published.filter(tags__in=post_tags_ids)\
+    .exclude(id=post.id)
+    # similar to Gruop by Tag
+    similar_posts = similar_posts.annotate(same_tags=Count('tags'))\
+    .order_by('-same_tags','-publish')[:4]
+
     return render(request, 'blog/post/detail.html', {'post': post,
                                                      'comments': comments,
-                                                     'form':form})
+                                                     'form':form,
+                                                     'similar_posts':similar_posts})
 
 
 
